@@ -27,6 +27,7 @@ Phase 2: Feature Expansion (Month 4-6)
 Objective: Expand the system's functionality and increase adoption.
 
 Advanced Features:
+- [TODO] Implement managing cluster with voice command with visual interface with dashboard and real time feedback
 - [IN PROGRESS] Horizontal Scalability: Implement clustering for horizontal scaling and load balancing across multiple nodes.
 - [IN PROGRESS] Message Persistence: Add support for durable message storage using an efficient storage engine (e.g., RocksDB).
 - [IN PROGRESS] Security Features: Integrate TLS encryption, authentication mechanisms, and access control.
@@ -109,5 +110,3 @@ Community & Open-Source Leadership:
 Future-Proofing:
 - [TODO] Invest in R&D to keep up with technological advancements and emerging market trends.
 - [TODO] Regularly update the roadmap to reflect new goals, challenges, and opportunities.
-
-// ... (rest of the roadmap remains unchanged)

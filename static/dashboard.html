@@ -5,12 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RapidMQ Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/annyang/2.6.1/annyang.min.js"></script>
 </head>
 <body>
     <h1>RapidMQ Dashboard</h1>
     <div>
         <canvas id="metricsChart"></canvas>
     </div>
+    <button id="start-voice">Start Voice Command</button>
     <script>
         const ctx = document.getElementById('metricsChart').getContext('2d');
         const chart = new Chart(ctx, {
@@ -56,6 +58,52 @@
         }
 
         setInterval(updateMetrics, 5000);
+
+        if (annyang) {
+            const commands = {
+                'create queue *name': (name) => {
+                    fetch(`/queue/${name}`, { method: 'POST' })
+                        .then(response => response.text())
+                        .then(data => alert(data));
+                },
+                'publish message *message to queue *name': (message, name) => {
+                    fetch('/publish', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ queue_name: name, message: message })
+                    })
+                        .then(response => response.text())
+                        .then(data => alert(data));
+                },
+                'consume message from queue *name': (name) => {
+                    fetch(`/consume/${name}`)
+                        .then(response => response.json())
+                        .then(data => alert(`Consumed message: ${data.content}`))
+                        .catch(() => alert('No messages in queue'));
+                },
+                'add node *id at *address': (id, address) => {
+                    fetch('/node', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ node_id: parseInt(id), address: address })
+                    })
+                        .then(response => response.text())
+                        .then(data => alert(data));
+                },
+                'remove node *id': (id) => {
+                    fetch(`/node/${id}`, { method: 'DELETE' })
+                        .then(response => response.text())
+                        .then(data => alert(data));
+                }
+            };
+
+            annyang.addCommands(commands);
+
+            document.getElementById('start-voice').addEventListener('click', () => {
+                annyang.start();
+                alert('Voice command started');
+            });
+        }
     </script>
 </body>
 </html>

@@ -1,4 +1,5 @@
 use actix_web::{web, App, HttpResponse, HttpServer, Responder, HttpRequest};
+use actix_web_actors::ws;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::{RapidMQ, Message};
@@ -126,6 +127,10 @@ async fn metrics() -> impl Responder {
     HttpResponse::Ok().body(String::from_utf8(buffer).unwrap())
 }
 
+async fn ws_index(r: HttpRequest, stream: web::Payload) -> Result<HttpResponse, actix_web::Error> {
+    ws::start(MyWebSocket::new(), &r, stream)
+}
+
 pub async fn start_api(rapidmq: RapidMQ) -> std::io::Result<()> {
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
     builder.set_private_key_file("key.pem", SslFiletype::PEM).unwrap();
@@ -142,8 +147,38 @@ pub async fn start_api(rapidmq: RapidMQ) -> std::io::Result<()> {
             .route("/metrics", web::GET().to(metrics))
             .route("/node", web::POST().to(add_node))
             .route("/node/{node_id}", web::DELETE().to(remove_node))
+            .route("/ws/", web::get().to(ws_index))
     })
     .bind_openssl("127.0.0.1:8080", builder)?
     .run()
     .await
+}
+
+struct MyWebSocket;
+
+impl MyWebSocket {
+    fn new() -> Self {
+        Self
+    }
+}
+
+impl actix::Actor for MyWebSocket {
+    type Context = ws::WebsocketContext<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        ctx.text("WebSocket connection established");
+    }
+}
+
+impl actix::StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWebSocket {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+        match msg {
+            Ok(ws::Message::Text(text)) => ctx.text(text),
+            Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
+            Ok(ws::Message::Pong(_)) => (),
+            Ok(ws::Message::Binary(_)) => (),
+            Ok(ws::Message::Close(reason)) => ctx.close(reason),
+            _ => (),
+        }
+    }
 }
