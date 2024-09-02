@@ -187,7 +187,7 @@ User Stories:
   - The admin interface shows the current routing optimization status and performance metrics
   - Routing optimization can be disabled or adjusted as needed
 
-- As a DevOps engineer, I can view AI-suggested routing improvements in the dashboard so that I can approve and implement them.
+- As a DevOps engineer, I can view AI-generated routing improvements in the dashboard so that I can approve and implement them.
   AC:
   - The dashboard displays AI-generated routing suggestions based on performance data
   - Suggestions include potential improvements, expected impact, and risk assessment

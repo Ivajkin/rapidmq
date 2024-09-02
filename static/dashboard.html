@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RapidMQ Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1>RapidMQ Dashboard</h1>
+    <div>
+        <canvas id="metricsChart"></canvas>
+    </div>
+    <script>
+        const ctx = document.getElementById('metricsChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Messages Published', 'Messages Consumed', 'Queue Count', 'Total Messages'],
+                datasets: [{
+                    label: 'Metrics',
+                    data: [0, 0, 0, 0],
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.2)',
+                        'rgba(54, 162, 235, 0.2)',
+                        'rgba(255, 206, 86, 0.2)',
+                        'rgba(75, 192, 192, 0.2)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)',
+                        'rgba(75, 192, 192, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        function updateMetrics() {
+            fetch('/metrics')
+                .then(response => response.text())
+                .then(data => {
+                    const metrics = data.split('\n').filter(line => !line.startsWith('#'));
+                    const values = metrics.map(line => parseFloat(line.split(' ')[1]));
+                    chart.data.datasets[0].data = values;
+                    chart.update();
+                });
+        }
+
+        setInterval(updateMetrics, 5000);
+    </script>
+</body>
+</html>
