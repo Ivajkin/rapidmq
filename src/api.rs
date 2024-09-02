@@ -24,6 +24,12 @@ struct Credentials {
     password: String,
 }
 
+#[derive(Deserialize)]
+struct AddNodeRequest {
+    node_id: u64,
+    address: String,
+}
+
 async fn authenticate(req: HttpRequest, credentials: web::Json<Credentials>) -> impl Responder {
     // In a real-world scenario, you would check against a database
     let hashed_password = hash(&credentials.password, 4).unwrap();
@@ -82,6 +88,32 @@ async fn consume_message(
     }
 }
 
+async fn add_node(
+    req: HttpRequest,
+    rapidmq: web::Data<RapidMQ>,
+    req_body: web::Json<AddNodeRequest>,
+) -> impl Responder {
+    if !is_authenticated(&req) {
+        return HttpResponse::Unauthorized().body("Authentication required");
+    }
+    let node_id = NodeId::from(req_body.node_id);
+    rapidmq.add_node(node_id, req_body.address.clone());
+    HttpResponse::Ok().body(format!("Node {} added", req_body.node_id))
+}
+
+async fn remove_node(
+    req: HttpRequest,
+    rapidmq: web::Data<RapidMQ>,
+    node_id: web::Path<u64>,
+) -> impl Responder {
+    if !is_authenticated(&req) {
+        return HttpResponse::Unauthorized().body("Authentication required");
+    }
+    let node_id = NodeId::from(*node_id);
+    rapidmq.remove_node(node_id);
+    HttpResponse::Ok().body(format!("Node {} removed", node_id))
+}
+
 fn is_authenticated(req: &HttpRequest) -> bool {
     // In a real-world scenario, you would validate the session token
     req.headers().contains_key("Authorization")
@@ -108,6 +140,8 @@ pub async fn start_api(rapidmq: RapidMQ) -> std::io::Result<()> {
             .route("/publish", web::POST().to(publish_message))
             .route("/consume/{queue_name}", web::GET().to(consume_message))
             .route("/metrics", web::GET().to(metrics))
+            .route("/node", web::POST().to(add_node))
+            .route("/node/{node_id}", web::DELETE().to(remove_node))
     })
     .bind_openssl("127.0.0.1:8080", builder)?
     .run()

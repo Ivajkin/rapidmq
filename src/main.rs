@@ -1,10 +1,12 @@
 use rapidmq::{RapidMQ, api};
 use raft::NodeId;
+use std::env;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let node_id = NodeId::from(1); // This should be configured for each node
-    let peers = vec![NodeId::from(2), NodeId::from(3)]; // This should be configured for the cluster
+    let args: Vec<String> = env::args().collect();
+    let node_id = NodeId::from(args[1].parse::<u64>().unwrap());
+    let peers: Vec<NodeId> = args[2..].iter().map(|s| NodeId::from(s.parse::<u64>().unwrap())).collect();
 
     let rapidmq = RapidMQ::new(node_id, peers);
     

@@ -172,50 +172,99 @@ impl RapidMQ {
     pub async fn run(&self) {
         self.cluster_manager.run().await;
     }
+
+    pub fn add_node(&self, node_id: NodeId, address: String) {
+        self.cluster_manager.add_node(node_id, address);
+    }
+
+    pub fn remove_node(&self, node_id: NodeId) {
+        self.cluster_manager.remove_node(node_id);
+    }
 }
 
 // Tests
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::runtime::Runtime;
+
+    fn setup() -> (RapidMQ, NodeId) {
+        let node_id = NodeId::from(1);
+        let peers = vec![NodeId::from(2), NodeId::from(3)];
+        (RapidMQ::new(node_id, peers), node_id)
+    }
+
+    #[test]
+    fn test_create_queue() {
+        let (mq, _) = setup();
+        mq.create_queue("test_queue");
+        assert!(mq.queues.lock().unwrap().contains_key("test_queue"));
+        assert_eq!(metrics::QUEUE_COUNT.get(), 1);
+    }
 
     #[test]
     fn test_publish_consume() {
-        let mq = RapidMQ::new();
-        mq.create_queue("test_queue");
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let (mq, _) = setup();
+            mq.create_queue("test_queue");
 
-        let message = Message {
-            id: "1".to_string(),
-            content: "Test message".to_string(),
-        };
+            let message = Message {
+                id: "1".to_string(),
+                content: "Test message".to_string(),
+            };
 
-        mq.publish("test_queue", message.clone());
+            mq.publish("test_queue", message.clone()).await;
+            assert_eq!(metrics::MESSAGES_PUBLISHED.get(), 1);
+            assert_eq!(metrics::TOTAL_MESSAGES.get(), 1);
 
-        let consumed = mq.consume("test_queue").unwrap();
-        assert_eq!(consumed.id, message.id);
-        assert_eq!(consumed.content, message.content);
+            let consumed = mq.consume("test_queue").await.unwrap();
+            assert_eq!(consumed.id, message.id);
+            assert_eq!(consumed.content, message.content);
+            assert_eq!(metrics::MESSAGES_CONSUMED.get(), 1);
+            assert_eq!(metrics::TOTAL_MESSAGES.get(), 0);
+        });
     }
 
     #[test]
     fn test_subscribe() {
-        let mq = RapidMQ::new();
-        mq.create_queue("main_queue");
-        mq.create_queue("subscriber_queue");
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let (mq, _) = setup();
+            mq.create_queue("main_queue");
+            mq.create_queue("subscriber_queue");
 
-        mq.subscribe("main_queue", "subscriber_queue");
+            mq.subscribe("main_queue", "subscriber_queue");
 
-        let message = Message {
-            id: "1".to_string(),
-            content: "Test message".to_string(),
-        };
+            let message = Message {
+                id: "1".to_string(),
+                content: "Test message".to_string(),
+            };
 
-        mq.publish("main_queue", message.clone());
+            mq.publish("main_queue", message.clone()).await;
 
-        let consumed_main = mq.consume("main_queue").unwrap();
-        let consumed_sub = mq.consume("subscriber_queue").unwrap();
+            let consumed_main = mq.consume("main_queue").await.unwrap();
+            let consumed_sub = mq.consume("subscriber_queue").await.unwrap();
 
-        assert_eq!(consumed_main.id, message.id);
-        assert_eq!(consumed_sub.id, message.id);
+            assert_eq!(consumed_main.id, message.id);
+            assert_eq!(consumed_sub.id, message.id);
+            assert_eq!(metrics::MESSAGES_PUBLISHED.get(), 1);
+            assert_eq!(metrics::MESSAGES_CONSUMED.get(), 2);
+        });
+    }
+
+    #[test]
+    fn test_add_remove_node() {
+        let (mq, _) = setup();
+        let new_node_id = NodeId::from(4);
+        mq.add_node(new_node_id, "127.0.0.1:50004".to_string());
+        
+        let state = mq.cluster_manager.get_state();
+        assert!(state.nodes.contains_key(&new_node_id));
+
+        mq.remove_node(new_node_id);
+        let state = mq.cluster_manager.get_state();
+        assert!(!state.nodes.contains_key(&new_node_id));
     }
 }
 

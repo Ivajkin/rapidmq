@@ -12,13 +12,14 @@ pub mod rapidmq {
 
 use rapidmq::{
     rapid_mq_server::{RapidMq, RapidMqServer},
-    PublishRequest, PublishResponse, ConsumeRequest, ConsumeResponse,
+    PublishRequest, PublishResponse, ConsumeRequest, ConsumeResponse, StateUpdateRequest, StateUpdateResponse,
 };
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ClusterState {
     pub nodes: HashMap<NodeId, String>,
     pub queue_assignments: HashMap<String, NodeId>,
+    pub node_loads: HashMap<NodeId, usize>,
 }
 
 pub struct ClusterManager {
@@ -33,6 +34,7 @@ impl ClusterManager {
         let state = ClusterState {
             nodes: peers.into_iter().map(|id| (id, format!("127.0.0.1:{}", 50000 + id.0))).collect(),
             queue_assignments: HashMap::new(),
+            node_loads: HashMap::new(),
         };
         let node = Node::new(config, state.clone());
 
@@ -43,10 +45,92 @@ impl ClusterManager {
         }
     }
 
+    pub fn add_node(&self, node_id: NodeId, address: String) {
+        let mut state = self.state.lock().unwrap();
+        state.nodes.insert(node_id, address);
+        state.node_loads.insert(node_id, 0);
+        self.rebalance_queues();
+    }
+
+    pub fn remove_node(&self, node_id: NodeId) {
+        let mut state = self.state.lock().unwrap();
+        state.nodes.remove(&node_id);
+        state.node_loads.remove(&node_id);
+        self.rebalance_queues();
+    }
+
+    pub async fn sync_state(&self) {
+        let state = self.state.lock().unwrap().clone();
+        for (node_id, _) in state.nodes.iter() {
+            if *node_id != self.node.lock().unwrap().id() {
+                if let Err(e) = self.send_state_update(*node_id, state.clone()).await {
+                    eprintln!("Failed to sync state with node {}: {}", node_id, e);
+                }
+            }
+        }
+    }
+
+    async fn send_state_update(&self, node_id: NodeId, state: ClusterState) -> Result<(), Box<dyn std::error::Error>> {
+        let mut clients = self.rpc_clients.lock().unwrap();
+        let client = clients.entry(node_id).or_insert_with(|| {
+            let addr = self.state.lock().unwrap().nodes.get(&node_id).unwrap().clone();
+            let channel = Channel::from_shared(addr)
+                .unwrap()
+                .tls_config(tonic::transport::ClientTlsConfig::new())
+                .unwrap()
+                .connect_lazy();
+            rapidmq::rapid_mq_client::RapidMqClient::new(channel)
+        });
+
+        let request = tonic::Request::new(StateUpdateRequest {
+            state: serde_json::to_string(&state).unwrap(),
+        });
+
+        client.update_state(request).await?;
+        Ok(())
+    }
+
+    fn rebalance_queues(&self) {
+        let mut state = self.state.lock().unwrap();
+        let total_queues: usize = state.queue_assignments.len();
+        let nodes_count = state.nodes.len();
+        let target_load = (total_queues as f64 / nodes_count as f64).ceil() as usize;
+
+        let mut node_loads: HashMap<NodeId, usize> = state.nodes.keys().map(|&id| (id, 0)).collect();
+        for &node_id in state.queue_assignments.values() {
+            *node_loads.entry(node_id).or_default() += 1;
+        }
+
+        let mut queues_to_reassign = Vec::new();
+        for (queue, node) in state.queue_assignments.iter() {
+            if node_loads[node] > target_load {
+                queues_to_reassign.push(queue.clone());
+            }
+        }
+
+        for queue in queues_to_reassign {
+            let old_node = state.queue_assignments[&queue];
+            let new_node = self.least_loaded_node(&node_loads);
+            state.queue_assignments.insert(queue, new_node);
+            *node_loads.entry(old_node).or_default() -= 1;
+            *node_loads.entry(new_node).or_default() += 1;
+        }
+
+        state.node_loads = node_loads;
+    }
+
+    fn least_loaded_node(&self, node_loads: &HashMap<NodeId, usize>) -> NodeId {
+        node_loads.iter()
+            .min_by_key(|&(_, load)| load)
+            .map(|(&node_id, _)| node_id)
+            .unwrap_or_else(|| self.state.lock().unwrap().nodes.keys().next().unwrap().clone())
+    }
+
     pub fn assign_queue(&self, queue_name: &str) -> NodeId {
         let mut state = self.state.lock().unwrap();
-        let node_id = self.least_loaded_node();
+        let node_id = self.least_loaded_node(&state.node_loads);
         state.queue_assignments.insert(queue_name.to_string(), node_id);
+        *state.node_loads.entry(node_id).or_default() += 1;
         node_id
     }
 
@@ -55,15 +139,8 @@ impl ClusterManager {
         state.queue_assignments.get(queue_name).cloned()
     }
 
-    fn least_loaded_node(&self) -> NodeId {
-        let state = self.state.lock().unwrap();
-        let mut node_loads: HashMap<NodeId, usize> = state.nodes.keys().map(|&id| (id, 0)).collect();
-        
-        for &node_id in state.queue_assignments.values() {
-            *node_loads.entry(node_id).or_default() += 1;
-        }
-
-        node_loads.into_iter().min_by_key(|&(_, load)| load).unwrap().0
+    pub fn get_state(&self) -> ClusterState {
+        self.state.lock().unwrap().clone()
     }
 
     pub async fn run(&self) {
@@ -94,9 +171,22 @@ impl ClusterManager {
             loop {
                 let mut node = node.lock().unwrap();
                 node.tick();
-                // Handle any Raft events here
+                if let Some(leader) = node.leader() {
+                    if leader == node.id() {
+                        // This node is the leader, perform leader duties
+                        self.perform_leader_duties().await;
+                    }
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
         });
+    }
+
+    async fn perform_leader_duties(&self) {
+        // Synchronize state across all nodes
+        self.sync_state().await;
+        // Rebalance queues if necessary
+        self.rebalance_queues();
     }
 
     pub async fn publish_remote(&self, node_id: NodeId, queue_name: &str, message: crate::Message) -> Result<(), Box<dyn std::error::Error>> {
@@ -173,5 +263,15 @@ impl RapidMq for RapidMqService {
             message_id: "".to_string(),
             content: "".to_string(),
         }))
+    }
+
+    async fn update_state(
+        &self,
+        request: Request<StateUpdateRequest>,
+    ) -> Result<Response<StateUpdateResponse>, Status> {
+        let req = request.into_inner();
+        let new_state: ClusterState = serde_json::from_str(&req.state).map_err(|e| Status::internal(e.to_string()))?;
+        *self.state.lock().unwrap() = new_state;
+        Ok(Response::new(StateUpdateResponse { success: true }))
     }
 }
