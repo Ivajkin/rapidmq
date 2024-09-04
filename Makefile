@@ -1,60 +1,60 @@
 # Makefile for RapidMQ
 
-# Variables
-CARGO = cargo
-TARGET = target
-BIN = $(TARGET)/debug/rapidmq
-TESTS = tests/integration_tests.rs
-PROTO_DIR = proto
-PROTO_FILES = $(PROTO_DIR)/rapidmq.proto
+CARGO := cargo
+DOCKER := docker
+DOCKER_IMAGE := rapidmq
+DOCKER_TAG := latest
+TEST_COMMAND := $(CARGO) test
+RELEASE_FLAG := --release
 
-# Default target
-all: build
+.PHONY: all build test clean docker-build docker-run deploy
 
-# Build the project
+all: build test
+
 build:
-	$(CARGO) build
+	$(CARGO) build $(RELEASE_FLAG)
 
-# Run the project
-run: build
-	$(BIN) 1 2 3
+test:
+	$(TEST_COMMAND)
 
-# Clean the project
 clean:
 	$(CARGO) clean
+	rm -rf src/protos
 
-# Run unit tests
-test:
-	$(CARGO) test
+docker-build:
+	$(DOCKER) build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
 
-# Run integration tests
+docker-run:
+	$(DOCKER) run -p 9092:9092 -p 9093:9093 $(DOCKER_IMAGE):$(DOCKER_TAG)
+
+deploy: docker-build
+	./scripts/deploy.sh
+
 integration-test:
-	$(CARGO) test --test integration_tests
+	./scripts/run_integration_tests.sh
 
-# Generate protobuf files
-proto:
-	$(CARGO) build --build-plan | grep -oE 'tonic_build::compile_protos\(".*?"\)' | xargs -I {} sh -c '{}'
+benchmark:
+	./scripts/run_benchmarks.sh
 
-# Generate SSL certificates
-generate-certs:
-	./generate_certs.sh
+lint:
+	$(CARGO) clippy -- -D warnings
 
-# Help message
+format:
+	$(CARGO) fmt
+
+check: lint test
+
 help:
-	@echo "Makefile for RapidMQ"
-	@echo ""
-	@echo "Usage:"
-	@echo "  make [target]"
-	@echo ""
-	@echo "Targets:"
-	@echo "  all                Build the project (default)"
-	@echo "  build              Build the project"
-	@echo "  run                Run the project"
-	@echo "  clean              Clean the project"
-	@echo "  test               Run unit tests"
-	@echo "  integration-test   Run integration tests"
-	@echo "  proto              Generate protobuf files"
-	@echo "  generate-certs     Generate SSL certificates"
-	@echo "  help               Show this help message"
-
-.PHONY: all build run clean test integration-test proto generate-certs help
+	@echo "Available targets:"
+	@echo "  build            - Build the project"
+	@echo "  test             - Run unit tests"
+	@echo "  clean            - Clean build artifacts"
+	@echo "  docker-build     - Build Docker image"
+	@echo "  docker-run       - Run Docker container"
+	@echo "  deploy           - Deploy to production"
+	@echo "  integration-test - Run integration tests"
+	@echo "  benchmark        - Run benchmarks"
+	@echo "  lint             - Run linter"
+	@echo "  format           - Format code"
+	@echo "  check            - Run linter and tests"
+	@echo "  help             - Show this help message"
