@@ -1,4 +1,4 @@
-use actix_web::{web, App, HttpResponse, HttpServer, Responder, HttpRequest};
+use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use actix_web_actors::ws;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -6,6 +6,7 @@ use crate::{RapidMQ, Message};
 use bcrypt::{hash, verify};
 use prometheus::{Encoder, TextEncoder};
 use actix_files::Files;
+use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 
 #[derive(Deserialize)]
 struct PublishRequest {
@@ -140,13 +141,13 @@ pub async fn start_api(rapidmq: RapidMQ) -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(rapidmq.clone()))
             .service(Files::new("/dashboard", "static").index_file("dashboard.html"))
-            .route("/authenticate", web::POST().to(authenticate))
-            .route("/queue/{name}", web::POST().to(create_queue))
-            .route("/publish", web::POST().to(publish_message))
-            .route("/consume/{queue_name}", web::GET().to(consume_message))
-            .route("/metrics", web::GET().to(metrics))
-            .route("/node", web::POST().to(add_node))
-            .route("/node/{node_id}", web::DELETE().to(remove_node))
+            .route("/authenticate", web::post().to(authenticate))
+            .route("/queue/{name}", web::post().to(create_queue))
+            .route("/publish", web::post().to(publish_message))
+            .route("/consume/{queue_name}", web::get().to(consume_message))
+            .route("/metrics", web::get().to(metrics))
+            .route("/node", web::post().to(add_node))
+            .route("/node/{node_id}", web::delete().to(remove_node))
             .route("/ws/", web::get().to(ws_index))
     })
     .bind_openssl("127.0.0.1:8080", builder)?

@@ -4,17 +4,34 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-actix-web = "4.3"
-tokio = { version = "1.0", features = ["full"] }
+actix-web = "4.4"
+actix-web-actors = "4.2"
+actix-files = "0.6"
+tokio = { version = "1.36", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-raft = "0.7.0"
-tonic = "0.8"
-prost = "0.11"
+raft = "0.7"
+tonic = "0.10"
+prost = "0.12"
+uuid = { version = "1.7", features = ["v4"] }
+bcrypt = "0.15"
+prometheus = "0.13"
+lazy_static = "1.4"
+rocksdb = "0.21"
+openssl = "0.10"
 
 [build-dependencies]
-tonic-build = "0.8"
+tonic-build = "0.10"
 
 [[bin]]
 name = "rapidmq"
 path = "src/main.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = 'abort'
+strip = true
+
+[build]
+jobs = 4  # Adjust this number based on your CPU cores

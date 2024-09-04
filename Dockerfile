@@ -1,23 +1,43 @@
-# Use a more recent Rust image
-FROM rust:1.75 as builder
+# Use BuildKit
+# syntax=docker/dockerfile:1.4
 
-# Set the working directory in the container
-WORKDIR /usr/src/rapidmq
+FROM alpine:3.19 AS base
+RUN apk add --no-cache curl
 
-# Copy the current directory contents into the container
+FROM base AS rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+FROM rust AS chef
+WORKDIR /app
+RUN apk add --no-cache musl-dev cmake protobuf-dev
+RUN cargo install --version 0.1.62 cargo-chef
+
+FROM chef AS planner
 COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
 
-# Build the application
-RUN cargo build --release
+FROM chef AS builder
+COPY --from=planner /app/recipe.json recipe.json
+ARG CARGO_BUILD_JOBS
+ENV CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-4}
+ENV CARGO_BUILD_RUSTC_WRAPPER=sccache
+RUN cargo install sccache
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/root/.cargo/git \
+    --mount=type=cache,target=/root/.cache/sccache \
+    cargo chef cook --release --recipe-path recipe.json && \
+    rm -rf target
+COPY . .
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/root/.cargo/git \
+    --mount=type=cache,target=/root/.cache/sccache \
+    cargo build --release && \
+    cp /app/target/release/rapidmq /app/rapidmq && \
+    rm -rf target
 
-# Start a new stage for a smaller final image
-FROM debian:bullseye-slim
-
-# Install OpenSSL and CA certificates
-RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
-
-# Copy the binary from the builder stage
-COPY --from=builder /usr/src/rapidmq/target/release/rapidmq /usr/local/bin/rapidmq
-
-# Set the startup command to run your binary
-CMD ["rapidmq"]
+FROM alpine:3.19 AS runtime
+WORKDIR /app
+RUN apk add --no-cache libgcc
+COPY --from=builder /app/rapidmq /app/rapidmq
+CMD ["/app/rapidmq"]

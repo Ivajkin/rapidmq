@@ -1,5 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
+use raft::prelude::*;
 use rocksdb::{DB, Options};
 use serde::{Serialize, Deserialize};
 use raft::NodeId;
