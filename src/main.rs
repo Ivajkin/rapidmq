@@ -54,6 +54,9 @@ async fn main() -> std::io::Result<()> {
         }
     }
 
+    println!("Starting RapidMQ with AI and Quantum Computing enhancements");
+    println!("AI-powered message prioritization and Quantum-optimized routing enabled");
+
     println!("Starting RapidMQ API server on http://127.0.0.1:8080");
     api::start_api(rapidmq).await
 }

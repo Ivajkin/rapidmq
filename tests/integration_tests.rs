@@ -201,3 +201,57 @@ fn test_cluster_fault_tolerance() {
         assert_eq!(consumed.content, new_message.content);
     });
 }
+
+#[test]
+fn test_publish_consume() {
+    let rt = Runtime::new().unwrap();
+    rt.block_on(async {
+        let node_id = NodeId::from(1);
+        let peers = vec![NodeId::from(2), NodeId::from(3)];
+        let rapidmq = RapidMQ::new(node_id, peers);
+
+        rapidmq.create_queue("test_queue");
+
+        let message = Message {
+            id: "1".to_string(),
+            content: "Test message".to_string(),
+        };
+
+        rapidmq.publish("test_queue", message.clone()).await;
+
+        let consumed = rapidmq.consume("test_queue").await.unwrap();
+        assert_eq!(consumed.id, message.id);
+        assert_eq!(consumed.content, message.content);
+    });
+}
+
+#[test]
+fn test_multiple_queues() {
+    let rt = Runtime::new().unwrap();
+    rt.block_on(async {
+        let node_id = NodeId::from(1);
+        let peers = vec![NodeId::from(2), NodeId::from(3)];
+        let rapidmq = RapidMQ::new(node_id, peers);
+
+        rapidmq.create_queue("queue1");
+        rapidmq.create_queue("queue2");
+
+        let message1 = Message {
+            id: "1".to_string(),
+            content: "Message 1".to_string(),
+        };
+        let message2 = Message {
+            id: "2".to_string(),
+            content: "Message 2".to_string(),
+        };
+
+        rapidmq.publish("queue1", message1.clone()).await;
+        rapidmq.publish("queue2", message2.clone()).await;
+
+        let consumed1 = rapidmq.consume("queue1").await.unwrap();
+        let consumed2 = rapidmq.consume("queue2").await.unwrap();
+
+        assert_eq!(consumed1.content, "Message 1");
+        assert_eq!(consumed2.content, "Message 2");
+    });
+}

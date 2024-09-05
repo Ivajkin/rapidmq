@@ -34,7 +34,7 @@ integration-test:
 	./scripts/run_integration_tests.sh
 
 benchmark:
-	./scripts/run_benchmarks.sh
+	cargo bench
 
 lint:
 	$(CARGO) clippy -- -D warnings

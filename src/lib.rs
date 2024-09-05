@@ -104,7 +104,7 @@ impl RapidMQ {
 
     pub fn create_queue(&self, queue_name: &str) {
         let node_id = self.cluster_manager.assign_queue(queue_name);
-        if node_id == self.cluster_manager.node.lock().unwrap().id() {
+        if node_id == self.cluster_manager.node.lock().id() {
             let mut queues = self.queues.lock().unwrap();
             queues.entry(queue_name.to_string()).or_insert_with(|| Queue::new(queue_name, self.db.clone()));
         }
@@ -113,7 +113,7 @@ impl RapidMQ {
 
     pub async fn publish(&self, queue_name: &str, message: Message) {
         if let Some(node_id) = self.cluster_manager.get_queue_node(queue_name) {
-            if node_id == self.cluster_manager.node.lock().unwrap().id() {
+            if node_id == self.cluster_manager.node.lock().id() {
                 let mut queues = self.queues.lock().unwrap();
                 if let Some(queue) = queues.get_mut(queue_name) {
                     queue.enqueue(message.clone());
@@ -140,13 +140,24 @@ impl RapidMQ {
 
     pub async fn consume(&self, queue_name: &str) -> Option<Message> {
         if let Some(node_id) = self.cluster_manager.get_queue_node(queue_name) {
-            if node_id == self.cluster_manager.node.lock().unwrap().id() {
+            if node_id == self.cluster_manager.node.lock().id() {
                 let mut queues = self.queues.lock().unwrap();
-                queues.get_mut(queue_name).and_then(|queue| queue.dequeue())
+                let message = queues.get_mut(queue_name).and_then(|queue| queue.dequeue());
+                if message.is_some() {
+                    metrics::MESSAGES_CONSUMED.inc();
+                    metrics::TOTAL_MESSAGES.dec();
+                }
+                message
             } else {
                 // Forward the consume request to the appropriate node
                 match self.cluster_manager.consume_remote(node_id, queue_name).await {
-                    Ok(message) => message,
+                    Ok(message) => {
+                        if message.is_some() {
+                            metrics::MESSAGES_CONSUMED.inc();
+                            metrics::TOTAL_MESSAGES.dec();
+                        }
+                        message
+                    }
                     Err(e) => {
                         eprintln!("Failed to consume message from remote node: {}", e);
                         None
@@ -155,10 +166,6 @@ impl RapidMQ {
             }
         } else {
             None
-        }
-        if let Some(message) = message {
-            metrics::MESSAGES_CONSUMED.inc();
-            metrics::TOTAL_MESSAGES.dec();
         }
     }
 
@@ -180,6 +187,23 @@ impl RapidMQ {
 
     pub fn remove_node(&self, node_id: NodeId) {
         self.cluster_manager.remove_node(node_id);
+    }
+
+    pub async fn adaptive_publish(&self, queue_name: &str, message: Message) -> Result<(), Box<dyn std::error::Error>> {
+        let priority = self.cluster_manager.ai_module.predict_message_priority(&message.content).await?;
+        let node_id = self.cluster_manager.assign_queue(queue_name).await;
+        
+        if priority > 0.8 {
+            // High priority message, use quantum-optimized routing
+            let optimized_route = self.cluster_manager.quantum_module.optimize_routing(vec![node_id.0]);
+            let target_node = NodeId::from(optimized_route[0]);
+            self.cluster_manager.publish_remote(target_node, queue_name, message).await?;
+        } else {
+            // Normal priority, use standard routing
+            self.publish(queue_name, message).await?;
+        }
+        
+        Ok(())
     }
 }
 
@@ -274,3 +298,10 @@ pub mod api;
 pub mod cluster;
 
 use cluster::ClusterManager;
+
+// Add new modules
+pub mod ai_module;
+pub mod quantum_module;
+
+use ai_module::AIModule;
+use quantum_module::QuantumModule;

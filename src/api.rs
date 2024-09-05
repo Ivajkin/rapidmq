@@ -132,6 +132,11 @@ async fn ws_index(r: HttpRequest, stream: web::Payload) -> Result<HttpResponse, 
     ws::start(MyWebSocket::new(), &r, stream)
 }
 
+async fn ai_insights(rapidmq: web::Data<RapidMQ>) -> impl Responder {
+    let insights = rapidmq.get_ai_insights();
+    HttpResponse::Ok().json(insights)
+}
+
 pub async fn start_api(rapidmq: RapidMQ) -> std::io::Result<()> {
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
     builder.set_private_key_file("key.pem", SslFiletype::PEM).unwrap();
@@ -149,6 +154,7 @@ pub async fn start_api(rapidmq: RapidMQ) -> std::io::Result<()> {
             .route("/node", web::post().to(add_node))
             .route("/node/{node_id}", web::delete().to(remove_node))
             .route("/ws/", web::get().to(ws_index))
+            .route("/ai_insights", web::get().to(ai_insights))
     })
     .bind_openssl("127.0.0.1:8080", builder)?
     .run()

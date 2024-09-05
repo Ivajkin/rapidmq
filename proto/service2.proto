@@ -1,0 +1,31 @@
+syntax = "proto3";
+package rapidmq;
+
+service ClusterManagement {
+  rpc AddNode (AddNodeRequest) returns (AddNodeResponse);
+  rpc RemoveNode (RemoveNodeRequest) returns (RemoveNodeResponse);
+  rpc GetClusterState (GetClusterStateRequest) returns (GetClusterStateResponse);
+}
+
+message AddNodeRequest {
+  uint64 node_id = 1;
+  string address = 2;
+}
+
+message AddNodeResponse {
+  bool success = 1;
+}
+
+message RemoveNodeRequest {
+  uint64 node_id = 1;
+}
+
+message RemoveNodeResponse {
+  bool success = 1;
+}
+
+message GetClusterStateRequest {}
+
+message GetClusterStateResponse {
+  string state = 1;
+}
