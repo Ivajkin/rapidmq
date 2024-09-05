@@ -10,9 +10,9 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 
 FROM rust AS chef
 WORKDIR /app
-RUN apk add --no-cache musl-dev cmake protobuf-dev
-# Install protoc
-RUN apk add --no-cache protoc
+RUN apk add --no-cache musl-dev cmake
+# Install specific version of protoc
+RUN apk add --no-cache protobuf-dev=3.21.12-r0
 RUN cargo install --version 0.1.62 cargo-chef
 
 FROM chef AS planner

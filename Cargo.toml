@@ -10,8 +10,8 @@ actix-files = "0.6"
 tokio = { version = "1.36", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-raft = "0.7"
-tonic = "0.10"
+raft = { version = "0.7.0", features = ["prost-codec"] }
+tonic = "0.11"
 prost = "0.12"
 uuid = { version = "1.7", features = ["v4"] }
 bcrypt = "0.15"
@@ -19,10 +19,11 @@ prometheus = "0.13"
 lazy_static = "1.4"
 rocksdb = "0.21"
 openssl = "0.10"
+protobuf = "3.3"
 
 [build-dependencies]
-tonic-build = "0.10"
-protobuf-codegen = "3.2"
+tonic-build = "0.11"
+protobuf-build = "0.15"
 
 [[bin]]
 name = "rapidmq"
@@ -35,4 +36,4 @@ panic = 'abort'
 strip = true
 
 [build]
-jobs = 4  # Adjust this number based on your CPU cores
+jobs = 20

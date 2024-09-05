@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Add protoc to PATH
+export PATH="/usr/local/bin:$PATH"
+
+# Print protoc version for debugging
+echo "protoc version: $(protoc --version)"
+
 # Determine the number of CPU cores
 if [[ "$(uname)" == "Darwin" ]]; then
     # macOS
@@ -12,7 +18,7 @@ else
     CORES=4
 fi
 
-# Set PROTOC environment variable
+# Set PROTOC environment variable explicitly
 export PROTOC=$(which protoc)
 
 # Build the Docker image in stages

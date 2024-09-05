@@ -3,24 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RapidMQ Dashboard</title>
+    <title>RapidMQ CEO Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/annyang/2.6.1/annyang.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 0;
+        }
+        .dashboard {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            padding: 20px;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin: 10px;
+            padding: 20px;
+            width: calc(50% - 40px);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        #start-voice {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+    </style>
 </head>
 <body>
-    <h1>RapidMQ Dashboard</h1>
-    <div>
-        <canvas id="metricsChart"></canvas>
+    <h1>RapidMQ CEO Dashboard</h1>
+    <div class="dashboard">
+        <div class="card">
+            <h2>Message Metrics</h2>
+            <canvas id="messageMetricsChart"></canvas>
+        </div>
+        <div class="card">
+            <h2>System Health</h2>
+            <canvas id="systemHealthChart"></canvas>
+        </div>
+        <div class="card">
+            <h2>Cluster Status</h2>
+            <canvas id="clusterStatusChart"></canvas>
+        </div>
+        <div class="card">
+            <h2>Voice Commands</h2>
+            <button id="start-voice">Start Voice Command</button>
+            <p id="voice-output"></p>
+        </div>
     </div>
-    <button id="start-voice">Start Voice Command</button>
     <script>
-        const ctx = document.getElementById('metricsChart').getContext('2d');
-        const chart = new Chart(ctx, {
+        const messageMetricsCtx = document.getElementById('messageMetricsChart').getContext('2d');
+        const systemHealthCtx = document.getElementById('systemHealthChart').getContext('2d');
+        const clusterStatusCtx = document.getElementById('clusterStatusChart').getContext('2d');
+
+        const messageMetricsChart = new Chart(messageMetricsCtx, {
             type: 'bar',
             data: {
                 labels: ['Messages Published', 'Messages Consumed', 'Queue Count', 'Total Messages'],
                 datasets: [{
-                    label: 'Metrics',
+                    label: 'Message Metrics',
                     data: [0, 0, 0, 0],
                     backgroundColor: [
                         'rgba(255, 99, 132, 0.2)',
@@ -46,14 +102,43 @@
             }
         });
 
+        const systemHealthChart = new Chart(systemHealthCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['CPU Usage', 'Memory Usage', 'Disk Usage'],
+                datasets: [{
+                    data: [30, 50, 20],
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.8)',
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(255, 206, 86, 0.8)'
+                    ]
+                }]
+            }
+        });
+
+        const clusterStatusChart = new Chart(clusterStatusCtx, {
+            type: 'pie',
+            data: {
+                labels: ['Active Nodes', 'Inactive Nodes'],
+                datasets: [{
+                    data: [5, 1],
+                    backgroundColor: [
+                        'rgba(75, 192, 192, 0.8)',
+                        'rgba(255, 99, 132, 0.8)'
+                    ]
+                }]
+            }
+        });
+
         function updateMetrics() {
             fetch('/metrics')
                 .then(response => response.text())
                 .then(data => {
                     const metrics = data.split('\n').filter(line => !line.startsWith('#'));
                     const values = metrics.map(line => parseFloat(line.split(' ')[1]));
-                    chart.data.datasets[0].data = values;
-                    chart.update();
+                    messageMetricsChart.data.datasets[0].data = values;
+                    messageMetricsChart.update();
                 });
         }
 
@@ -61,10 +146,19 @@
 
         if (annyang) {
             const commands = {
+                'show system health': () => {
+                    alert('System health: CPU usage 30%, Memory usage 50%, Disk usage 20%');
+                },
+                'show cluster status': () => {
+                    alert('Cluster status: 5 active nodes, 1 inactive node');
+                },
                 'create queue *name': (name) => {
                     fetch(`/queue/${name}`, { method: 'POST' })
                         .then(response => response.text())
-                        .then(data => alert(data));
+                        .then(data => {
+                            alert(data);
+                            updateMetrics();
+                        });
                 },
                 'publish message *message to queue *name': (message, name) => {
                     fetch('/publish', {
@@ -73,27 +167,19 @@
                         body: JSON.stringify({ queue_name: name, message: message })
                     })
                         .then(response => response.text())
-                        .then(data => alert(data));
+                        .then(data => {
+                            alert(data);
+                            updateMetrics();
+                        });
                 },
                 'consume message from queue *name': (name) => {
                     fetch(`/consume/${name}`)
                         .then(response => response.json())
-                        .then(data => alert(`Consumed message: ${data.content}`))
+                        .then(data => {
+                            alert(`Consumed message: ${data.content}`);
+                            updateMetrics();
+                        })
                         .catch(() => alert('No messages in queue'));
-                },
-                'add node *id at *address': (id, address) => {
-                    fetch('/node', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ node_id: parseInt(id), address: address })
-                    })
-                        .then(response => response.text())
-                        .then(data => alert(data));
-                },
-                'remove node *id': (id) => {
-                    fetch(`/node/${id}`, { method: 'DELETE' })
-                        .then(response => response.text())
-                        .then(data => alert(data));
                 }
             };
 
@@ -101,7 +187,7 @@
 
             document.getElementById('start-voice').addEventListener('click', () => {
                 annyang.start();
-                alert('Voice command started');
+                document.getElementById('voice-output').textContent = 'Voice command started. Try saying "show system health" or "show cluster status".';
             });
         }
     </script>

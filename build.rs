@@ -1,16 +1,15 @@
 use std::io::Result;
 use std::path::PathBuf;
 
-fn main() -> Result<()> {
-    let proto_file = "proto/rapidmq.proto";
-    let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Compile protos using tonic-build
+    tonic_build::compile_protos("proto/your_proto_file.proto")?;
 
-    tonic_build::configure()
-        .build_server(true)
-        .out_dir(&out_dir)
-        .compile(&[proto_file], &["proto"])?;
-
-    println!("cargo:rerun-if-changed={}", proto_file);
+    // Compile protos using protobuf-build
+    protobuf_build::Builder::new()
+        .files(&["proto/your_proto_file.proto"])
+        .out_dir("src/generated")
+        .generate()?;
 
     Ok(())
 }
