@@ -12,6 +12,9 @@ else
     CORES=4
 fi
 
+# Set PROTOC environment variable
+export PROTOC=$(which protoc)
+
 # Build the Docker image in stages
 DOCKER_BUILDKIT=1 docker build --target base -t rapidmq:base .
 DOCKER_BUILDKIT=1 docker build --target rust -t rapidmq:rust .
