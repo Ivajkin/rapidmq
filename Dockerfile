@@ -6,7 +6,8 @@ FROM node:16 AS frontend-builder
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm install --legacy-peer-deps
-COPY . .
+COPY public ./public
+COPY src ./src
 RUN npm run build
 
 # Stage 2: Build the Rust backend
