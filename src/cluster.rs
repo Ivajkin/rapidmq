@@ -230,10 +230,12 @@ impl ClusterManager {
             rapidmq::rapid_mq_client::RapidMqClient::new(channel)
         });
 
+        let proto_message: RapidMQMessage = message.into();
+        let encoded = proto_message.encode_to_vec();
+
         let request = tonic::Request::new(PublishRequest {
             queue_name: queue_name.to_string(),
-            message_id: message.id.clone(),
-            content: message.content.clone(),
+            message: encoded,
         });
 
         client.publish_message(request).await?;
@@ -254,13 +256,11 @@ impl ClusterManager {
         let response = client.consume_message(request).await?;
         let message = response.into_inner();
 
-        if message.message_id.is_empty() {
+        if message.message.is_empty() {
             Ok(None)
         } else {
-            Ok(Some(crate::Message {
-                id: message.message_id,
-                content: message.content,
-            }))
+            let proto_message = RapidMQMessage::decode(&message.message[..])?;
+            Ok(Some(proto_message.into()))
         }
     }
 

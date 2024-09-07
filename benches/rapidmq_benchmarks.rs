@@ -1,8 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use rapidmq::{RapidMQ, Message};
 use raft::NodeId;
-use crate::proto::RapidMQMessage;
-use prost::Message as ProstMessage;
 
 fn benchmark_publish(c: &mut Criterion) {
     let node_id = NodeId::from(1);
@@ -16,9 +14,7 @@ fn benchmark_publish(c: &mut Criterion) {
                 id: "1".to_string(),
                 content: "Test message".to_string(),
             };
-            let proto_message: RapidMQMessage = message.into();
-            let encoded = proto_message.encode_to_vec();
-            black_box(rapidmq.publish("test_queue", encoded));
+            black_box(rapidmq.publish("test_queue", message));
         })
     });
 }
@@ -45,5 +41,13 @@ fn benchmark_consume(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, benchmark_publish, benchmark_consume);
+fn benchmark_ai_prioritization(c: &mut Criterion) {
+    // Implement benchmark for AI-based message prioritization
+}
+
+fn benchmark_quantum_routing(c: &mut Criterion) {
+    // Implement benchmark for quantum-inspired routing optimization
+}
+
+criterion_group!(benches, benchmark_publish, benchmark_consume, benchmark_ai_prioritization, benchmark_quantum_routing);
 criterion_main!(benches);

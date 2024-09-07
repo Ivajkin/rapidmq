@@ -1,0 +1,21 @@
+name: Auto-Build-System
+
+on:
+  push:
+    branches:
+      - main  # Trigger pipeline on commit to main branch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Run AI Task
+        run: |
+          python run_task.py  # Run the AI script to generate the next step
+      - name: Test and Apply
+        run: |
+          python test_task.py  # Test the generated code
+          if test passed:
+            python apply_task.py  # Deploy the generated code

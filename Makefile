@@ -14,12 +14,27 @@ all: build test
 build:
 	$(CARGO) build $(RELEASE_FLAG)
 
-test:
-	$(TEST_COMMAND)
+test: unit-tests integration-tests
 
-clean:
-	$(CARGO) clean
-	rm -rf src/protos
+unit-tests:
+	cargo test --lib
+
+integration-tests:
+	cargo test --test integration_tests
+
+benchmark:
+	cargo bench
+
+lint:
+	cargo clippy -- -D warnings
+
+format:
+	cargo fmt
+
+check: lint test
+
+performance-test:
+	./scripts/run_performance_tests.sh
 
 docker-build:
 	$(DOCKER) build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
@@ -31,7 +46,7 @@ deploy: docker-build
 	./scripts/deploy.sh
 
 integration-test:
-	./scripts/run_integration_tests.sh
+	cargo test --test integration_tests --release
 
 benchmark:
 	cargo bench

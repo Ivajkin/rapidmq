@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package rapidmq;
+
+message RapidMQMessage {
+  string id = 1;
+  string content = 2;
+}

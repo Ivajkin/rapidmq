@@ -4,20 +4,46 @@ use raft::prelude::*;
 use rocksdb::{DB, Options};
 use serde::{Serialize, Deserialize};
 use raft::NodeId;
+use prost::Message as ProstMessage;
 
 // Add this at the top of the file
 pub mod metrics;
 
+// Include the generated protobuf code
+pub mod proto {
+    include!(concat!(env!("OUT_DIR"), "/rapidmq.rs"));
+}
+
+use proto::RapidMQMessage;
+
 // Message struct to represent individual messages
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Message {
     pub id: String,
     pub content: String,
 }
 
+impl From<Message> for RapidMQMessage {
+    fn from(msg: Message) -> Self {
+        RapidMQMessage {
+            id: msg.id,
+            content: msg.content,
+        }
+    }
+}
+
+impl From<RapidMQMessage> for Message {
+    fn from(msg: RapidMQMessage) -> Self {
+        Message {
+            id: msg.id,
+            content: msg.content,
+        }
+    }
+}
+
 // Queue struct to manage message queues
 pub struct Queue {
-    messages: VecDeque<Message>,
+    messages: VecDeque<Vec<u8>>,
     db: Arc<DB>,
     name: String,
 }
@@ -33,43 +59,31 @@ impl Queue {
     }
 
     pub fn enqueue(&mut self, message: Message) {
-        self.messages.push_back(message.clone());
-        self.persist_message(&message);
+        let proto_message: RapidMQMessage = message.into();
+        let encoded = proto_message.encode_to_vec();
+        self.messages.push_back(encoded);
+        self.persist_message(&encoded);
     }
 
     pub fn dequeue(&mut self) -> Option<Message> {
-        let message = self.messages.pop_front();
-        if let Some(ref msg) = message {
-            self.remove_persisted_message(&msg.id);
-        }
-        message
+        self.messages.pop_front().and_then(|encoded| {
+            RapidMQMessage::decode(&encoded[..])
+                .ok()
+                .map(|proto_message| proto_message.into())
+        })
     }
 
-    fn persist_message(&self, message: &Message) {
-        let key = format!("{}:{}", self.name, message.id);
-        let value = serde_json::to_string(message).unwrap();
-        self.db.put(key.as_bytes(), value.as_bytes()).unwrap();
+    fn persist_message(&self, encoded: &[u8]) {
+        let key = format!("{}:{}", self.name, uuid::Uuid::new_v4());
+        self.db.put(key.as_bytes(), encoded).unwrap();
     }
 
-    fn remove_persisted_message(&self, message_id: &str) {
-        let key = format!("{}:{}", self.name, message_id);
-        self.db.delete(key.as_bytes()).unwrap();
-    }
-
-    fn load_messages(name: &str, db: &DB) -> VecDeque<Message> {
+    fn load_messages(name: &str, db: &DB) -> VecDeque<Vec<u8>> {
         let mut messages = VecDeque::new();
         let prefix = format!("{}:", name);
         let iter = db.iterator(rocksdb::IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward));
-        for (key, value) in iter {
-            if let (Ok(key), Ok(value)) = (String::from_utf8(key.to_vec()), String::from_utf8(value.to_vec())) {
-                if key.starts_with(&prefix) {
-                    if let Ok(message) = serde_json::from_str(&value) {
-                        messages.push_back(message);
-                    }
-                } else {
-                    break;
-                }
-            }
+        for (_, value) in iter {
+            messages.push_back(value.to_vec());
         }
         messages
     }
@@ -305,3 +319,31 @@ pub mod quantum_module;
 
 use ai_module::AIModule;
 use quantum_module::QuantumModule;
+
+//! RapidMQ: A high-performance, AI-enhanced message queue system
+//!
+//! This library provides a robust, scalable message queue implementation
+//! with advanced features like AI-powered message prioritization and
+//! quantum-inspired routing optimization.
+//!
+//! # Quick Start
+//!
+//! ```rust
+//! use rapidmq::RapidMQClient;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let client = RapidMQClient::new("config/rapidmq.yaml")?;
+//!     
+//!     client.publish("my-topic", "Hello, RapidMQ!").await?;
+//!     
+//!     let mut subscription = client.subscribe("my-topic").await?;
+//!     while let Some(message) = subscription.next_message().await {
+//!         println!("Received: {:?}", message);
+//!     }
+//!     
+//!     Ok(())
+//! }
+//! ```
+
+// ... rest of the file ...

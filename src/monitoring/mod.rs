@@ -1,4 +1,3 @@
-use lazy_static::lazy_static;
 use prometheus::{Registry, Counter, Gauge, Histogram};
 
 lazy_static! {

@@ -145,7 +145,7 @@ pub async fn start_api(rapidmq: RapidMQ) -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(rapidmq.clone()))
-            .service(Files::new("/dashboard", "static").index_file("dashboard.html"))
+            .service(Files::new("/", "/usr/local/bin/frontend").index_file("index.html"))
             .route("/authenticate", web::post().to(authenticate))
             .route("/queue/{name}", web::post().to(create_queue))
             .route("/publish", web::post().to(publish_message))
@@ -187,33 +187,5 @@ impl actix::StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWebSocke
             Ok(ws::Message::Close(reason)) => ctx.close(reason),
             _ => (),
         }
-    }
-}
-
-pub struct RapidMQClient {
-    // Internal implementation details
-}
-
-impl RapidMQClient {
-    pub fn new(config: &str) -> Result<Self, Error> {
-        // Initialize client with configuration
-    }
-
-    pub async fn publish(&self, topic: &str, message: &[u8]) -> Result<(), Error> {
-        // Publish message
-    }
-
-    pub async fn subscribe(&self, topic: &str) -> Result<Subscription, Error> {
-        // Subscribe to topic
-    }
-}
-
-pub struct Subscription {
-    // Subscription details
-}
-
-impl Subscription {
-    pub async fn next_message(&mut self) -> Option<Message> {
-        // Get next message from subscription
     }
 }

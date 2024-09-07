@@ -1,45 +1,25 @@
 # Use BuildKit
 # syntax=docker/dockerfile:1.4
 
-FROM alpine:3.19 AS base
-RUN apk add --no-cache curl
-
-FROM base AS rust
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
-
-FROM rust AS chef
+# Stage 1: Build the React frontend
+FROM node:16 AS frontend-builder
 WORKDIR /app
-RUN apk add --no-cache musl-dev cmake
-# Install specific version of protoc
-RUN apk add --no-cache protobuf-dev=3.21.12-r0
-RUN cargo install --version 0.1.62 cargo-chef
-
-FROM chef AS planner
+COPY package.json package-lock.json ./
+RUN npm install --legacy-peer-deps
 COPY . .
-RUN cargo chef prepare --recipe-path recipe.json
+RUN npm run build
 
-FROM chef AS builder
-COPY --from=planner /app/recipe.json recipe.json
-ARG CARGO_BUILD_JOBS
-ENV CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-4}
-ENV CARGO_BUILD_RUSTC_WRAPPER=sccache
-RUN cargo install sccache
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/root/.cargo/git \
-    --mount=type=cache,target=/root/.cache/sccache \
-    cargo chef cook --release --recipe-path recipe.json && \
-    rm -rf target
+# Stage 2: Build the Rust backend
+FROM rust:1.68 as builder
+WORKDIR /usr/src/rapidmq
 COPY . .
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/root/.cargo/git \
-    --mount=type=cache,target=/root/.cache/sccache \
-    cargo build --release && \
-    cp /app/target/release/rapidmq /app/rapidmq && \
-    rm -rf target
+RUN cargo build --release
 
-FROM alpine:3.19 AS runtime
-WORKDIR /app
-RUN apk add --no-cache libgcc
-COPY --from=builder /app/rapidmq /app/rapidmq
-CMD ["/app/rapidmq"]
+# Stage 3: Create the final runtime image
+FROM debian:buster-slim
+RUN apt-get update && apt-get install -y libssl1.1 && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /usr/src/rapidmq/target/release/rapidmq /usr/local/bin/rapidmq
+COPY --from=frontend-builder /app/build /usr/local/bin/frontend
+COPY config/rapidmq.yaml /etc/rapidmq/config.yaml
+EXPOSE 8080 50051 9090
+CMD ["rapidmq", "--config", "/etc/rapidmq/config.yaml"]

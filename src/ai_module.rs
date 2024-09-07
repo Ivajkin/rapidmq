@@ -2,6 +2,7 @@ use tensorflow::{Graph, Session, SessionOptions, Tensor};
 use ndarray::{Array, Array2};
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use crate::cuda::add_vectors;
 
 pub struct AIModule {
     graph: Arc<Graph>,
@@ -50,7 +51,11 @@ impl AIModule {
             None,
         )?;
 
-        Ok(output.data().iter().enumerate().map(|(i, &v)| (i, v)).sorted_by(|a, b| b.1.partial_cmp(&a.1).unwrap()).map(|(i, _)| i).collect())
+        // Use CUDA to optimize the load balancing
+        let mut optimized_loads = vec![0.0; node_loads.len()];
+        add_vectors(node_loads, &output.data().to_vec(), &mut optimized_loads);
+
+        Ok(optimized_loads.iter().enumerate().map(|(i, &v)| (i, v)).sorted_by(|a, b| b.1.partial_cmp(&a.1).unwrap()).map(|(i, _)| i).collect())
     }
 
     pub async fn update_model(&self, performance_data: &[f32]) -> Result<(), Box<dyn std::error::Error>> {

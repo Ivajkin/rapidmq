@@ -1,0 +1,35 @@
+global:
+  log_level: info
+  data_dir: "/var/lib/rapidmq"
+
+messaging:
+  max_queue_size: 10000
+  persistence:
+    enabled: true
+    type: "rocksdb"
+
+clustering:
+  node_id: 1
+  peers:
+    - "127.0.0.1:50002"
+    - "127.0.0.1:50003"
+
+ai:
+  model_path: "/opt/rapidmq/models/priority_model.pb"
+  update_interval: 3600
+
+quantum:
+  simulator: "local"
+  qubits: 8
+
+api:
+  http_port: 8080
+  grpc_port: 50051
+
+monitoring:
+  prometheus_port: 9090
+
+plugins:
+  enabled:
+    - "custom_auth"
+    - "message_transform"
