@@ -109,7 +109,7 @@ impl ClusterManager {
         
         let optimized_nodes = self.quantum_module.optimize_routing(nodes.iter().map(|n| n.0).collect());
         let balanced_indices = self.quantum_module.quantum_load_balancing(&node_loads);
-        
+
         // Combine routing optimization and load balancing
         let combined_order: Vec<NodeId> = balanced_indices.iter()
             .map(|&i| NodeId::from(optimized_nodes[i]))
