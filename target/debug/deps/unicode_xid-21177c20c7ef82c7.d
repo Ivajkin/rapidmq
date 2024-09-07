@@ -1,8 +1,0 @@
-/Users/tim/rapidmq/target/debug/deps/libunicode_xid-21177c20c7ef82c7.rmeta: /Users/tim/.cargo/registry/src/index.crates.io-6f17d22bba15001f/unicode-xid-0.1.0/src/lib.rs /Users/tim/.cargo/registry/src/index.crates.io-6f17d22bba15001f/unicode-xid-0.1.0/src/tables.rs
-
-/Users/tim/rapidmq/target/debug/deps/libunicode_xid-21177c20c7ef82c7.rlib: /Users/tim/.cargo/registry/src/index.crates.io-6f17d22bba15001f/unicode-xid-0.1.0/src/lib.rs /Users/tim/.cargo/registry/src/index.crates.io-6f17d22bba15001f/unicode-xid-0.1.0/src/tables.rs
-
-/Users/tim/rapidmq/target/debug/deps/unicode_xid-21177c20c7ef82c7.d: /Users/tim/.cargo/registry/src/index.crates.io-6f17d22bba15001f/unicode-xid-0.1.0/src/lib.rs /Users/tim/.cargo/registry/src/index.crates.io-6f17d22bba15001f/unicode-xid-0.1.0/src/tables.rs
-
-/Users/tim/.cargo/registry/src/index.crates.io-6f17d22bba15001f/unicode-xid-0.1.0/src/lib.rs:
-/Users/tim/.cargo/registry/src/index.crates.io-6f17d22bba15001f/unicode-xid-0.1.0/src/tables.rs:
